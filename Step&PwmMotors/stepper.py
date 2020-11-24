@@ -13,12 +13,12 @@ import ctypes; import os
 from time import sleep
 import PySimpleGUI as sg 
 import cv2; import numpy as np
-import winsound
+import winsound # beep speaker during very small motor movements.
 
 DEBUG1=False
-CAM0=0 # default camera ID of openCV
+CAM0=0 # default camera ID for openCV
 
-DIVIDER_DELAY={1:0.05, 8:0.00001, 128:0.0 } #diff delay for diff angle divider
+DIVIDER_DELAY={1:0.05, 8:0.00001, 128:0.0 } #delays for different angle dividers
 PORT_CONFIG=0x00 # 0=O/P, 1=I/P
 WRITE_EN=ctypes.c_byte(0x00) # 0 write enable. If 1=> readOnly.  
 
@@ -69,12 +69,12 @@ class GpioStepper(UsbDevice):
         self.delay=DIVIDER_DELAY[p_divider] # second between Lo-Hi, Hi-Lo, total delay X2
 
 
-        p255=ctypes.byref(c_byte(255))       
+        p255=ctypes.byref(c_byte(255)) # point to a byte storage buffer.      
         print(f"GetGPIOConfig:{self.objdll.USBIO_GetGPIOConfig(c_byte(0),p255)}")
         print(f"SetGPIOConfig:{self.objdll.USBIO_SetGPIOConfig(c_byte(0),c_byte(PORT_CONFIG))}")
 
 
-    def _lo_hi_preprocess(self, direction=CLK_WISE):
+    def _lo_hi_preprocess(self, direction=CLK_WISE): # class's internal call
         """
         Mask corresponding bits to creat a high-signal and a low-signal patterns
          for driving the motor's controller
@@ -89,7 +89,7 @@ class GpioStepper(UsbDevice):
         high : high signal driving pattern
 
         """
-        low=MOTOR_EN #init low-signal as 0b100. bit2=ENA, bit1=Direction, bit0=pulse level
+        low=MOTOR_EN #init low-signal as 0b100. bit2=ENA, bit1=clockwise(0), bit0=pulse level
         low=low & CLK_WISE if  direction==CLK_WISE else low | ANTI_CLK_W # mask direction bit1       
         high=low | HIGH_MASK #creat hign-signal pattern. bitwise or with x01
         print('Low-Signal pattens:', bin(low), ' High-Signal is:', bin(high))
@@ -115,7 +115,7 @@ class GpioStepper(UsbDevice):
             self.objdll.USBIO_GPIOWrite(self.id, high, WRITE_EN) #; sleep(self.delay)#disable for highest motor speed
             # assert status, 'Write pulse to High error!'
 
-            #if DEBUG1: self._print_pulse(pulse, i) #print pulse counts to console
+            #if DEBUG1: self._print_pulse_count(pulse, i) #print pulse counts to console
             
         return self.stop()
     
@@ -168,13 +168,13 @@ class GpioStepper(UsbDevice):
                 self.objdll.USBIO_GPIOWrite(self.id, low, WRITE_EN) #;sleep(self.delay)#disable for highest motor speed
                 self.objdll.USBIO_GPIOWrite(self.id, high, WRITE_EN) #; sleep(self.delay)#disable for highest motor speed
             ret, frame = cap.read() # Capture frame-by-frame  
-            frames.append(frame) #; cv2.imshow('frame',frame)
+            frames.append(frame)
                 
             for __ in range(pulse): # 2nd anticlockwise direction
                 self.objdll.USBIO_GPIOWrite(self.id, low_antiClk, WRITE_EN) #;sleep(self.delay)#disable for highest motor speed
                 self.objdll.USBIO_GPIOWrite(self.id, high_antiClk, WRITE_EN) #; sleep(self.delay)#disable for highest motor speed
             ret, frame = cap.read() # Capture frame-by-frame                
-            frames.append(frame)#; cv2.imshow('frame',frame)
+            frames.append(frame)
 
     
         cap.release()
@@ -182,7 +182,7 @@ class GpioStepper(UsbDevice):
         return np.asarray(frames)
     
 
-    def _print_pulse(self, pulse, i):
+    def _print_pulse_count(self, pulse, i):
         sample=30 if pulse//200 < 30 else  pulse//200 #disable for highest motor speed
         if i%sample==0:
             print('Pulse count at:', i)
@@ -196,6 +196,8 @@ class GpioStepper(UsbDevice):
         True if test done and motor stopped normally.
 
         """
+        winsound.PlaySound('SystemExclamation', winsound.SND_ALIAS)
+        
         pulses=1000*3
         winsound.Beep(200, 1000) # .Beep(1650Hz, (XXXXms)) #e.g 1000ms=1second
         self.run(pulses); self.run(pulses, ANTI_CLK_W)
@@ -212,8 +214,9 @@ class GpioStepper(UsbDevice):
 
         winsound.Beep(1600, 1000)
         print('Testing II.....')
-        self.swing(2, count=1800); self.stop() #0.05625 degrees   
-
+        self.swing(2, count=1800); self.stop() #0.05625 degrees
+        
+        winsound.PlaySound('SystemExclamation', winsound.SND_ALIAS)
         print('                Testings Done! ')
         return self.stop() #set low before exist   
 
@@ -254,13 +257,13 @@ def cameraOn():
     None.
 
     """
-    cap = cv2.VideoCapture(CAM0, cv2.CAP_DSHOW) # use camera to monitor the motor-mirror assemnbly
+    cap = cv2.VideoCapture(CAM0, cv2.CAP_DSHOW) # use camera to monitor the motor-mirror assemnbly by DirectShow
     while(True):
         # Capture frame-by-frame
         ret, frame = cap.read()
 
         # Display the resulting frame
-        cv2.imshow('Real-Time Video',frame)
+        cv2.imshow("Real-Time Video. Press 'q' to exist.",frame)
         if cv2.waitKey(8) & 0xFF == ord('q'): #display a frame for 8ms, ~120Hz
             break
     
@@ -288,12 +291,26 @@ def show_frames(frame_buffer, m_sec=1):
     logic=True
     while logic:
         for frame in frame_buffer:
-            cv2.imshow(f'Replay frames at {m_sec} ms.',frame)
+            cv2.imshow(f"Replay frames at {m_sec} ms, Press 'q' to exist.", frame)
             if cv2.waitKey(m_sec) & 0xFF == ord('q'): #display a frame for m_sec mSeconds
                 logic=False # stop outer-loop
                 break # break inner-loop
         
     cv2.destroyAllWindows()
+
+def save_as_npy(filename: str, frames):
+    assert filename.split('.')[1]=='npy', 'Error, file extension is not npy'
+    with open(filename, 'wb') as f:
+        np.save(f, frames)
+        print('Save frames into:', filename, ' successfully.')
+
+def load_from_npy(filename: str):
+    assert filename.split('.')[1]=='npy', 'Error, file extension is not npy'
+    with open(filename, 'rb') as f:
+        temp=np.load(f) #return the numpy array
+        print(f'File load from {filename} successfully.')
+
+    return temp
 
 def user_input():
     """
