@@ -2,8 +2,6 @@
 """
 Created on Mon Nov 23 15:09:07 2020
 
-W1 is the original image, Num_recon and Opt_recon are the numerical, and optical reconstructed images, respectively. The optical reconstructed image is slightly tilted due to camera misalignment. You can use Photoshop to rotate it.
-
 
 @author: 3Ddemo
 """
@@ -25,3 +23,8 @@ print('Play the loaded video from:', filename)
 sp.show_frames(ld_frames, m_sec=1)
 
 
+
+""" Ref:
+W1 is the original image, Num_recon and Opt_recon are the numerical, and optical reconstructed images, respectively. The optical reconstructed image is slightly tilted due to camera misalignment. You can use Photoshop to rotate it.
+
+    """
