@@ -2,6 +2,7 @@
 """
 Created on Mon Nov 23 15:09:07 2020
 
+ver 1.0 - 1Dec2020
 
 @author: 3Ddemo
 """
@@ -12,8 +13,8 @@ motor=sp.GpioStepper(step_angle=0.9, p_divider=128) #creat step motor obj instan
 print('Enlarge the pattern, turn the mirror to see the pattern.'); sp.cameraOn()
 
 # motor.test() #Run clockwise, anticlockwise and swing 4 times
-frames= motor.swingCapture(pulse=32, count=5); motor.close()
-sp.show_frames(frames, m_sec=1200) # 1ms between two frames
+frames= motor.swingCapture(pulse=1024, divider=4, count=10); motor.close()
+sp.show_frames(frames, m_sec=1000) # 1ms between two frames
 
 filename='video.npy'
 sp.save_as_npy(filename, frames) #save into numpy formated data file.

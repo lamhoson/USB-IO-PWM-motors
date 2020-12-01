@@ -5,6 +5,7 @@ Created on Mon Nov 23 15:09:07 2020
 USB GPIO routines to drive Stepper Motor and PWM Motor
 
 ver 1.0 - 24Nov2020
+ver 1.1 - 1Dec2020
 
 @author: 3Ddemo
 """
@@ -140,7 +141,7 @@ class GpioStepper(UsbDevice):
         # return self.objdll.USBIO_GPIOWrite(self.id, c_byte(0b000), WRITE_EN) #set low before exist
         return
     
-    def swingCapture(self, pulse, count=5):
+    def swingCapture(self, pulse, divider=2, count=5):
         """
         Swing the motor and capture what the camera see before and after 
             the clockwise and the anti-clockwise drives
@@ -148,6 +149,7 @@ class GpioStepper(UsbDevice):
         Parameters
         ----------
         pulse : No of pulse to dirve the motor
+        div   : divide pulse into finer sub-group steps
         count : cycle counts, default is 5.
 
         Returns
@@ -155,26 +157,29 @@ class GpioStepper(UsbDevice):
         Captured image frames as numpy array
 
         """
-        pulse=int(pulse)
+        pulse=int(pulse) #make sure is integer
         cap = cv2.VideoCapture(CAM0, cv2.CAP_DSHOW) # use camera to monitor the motor-mirror assemnbly        
         frames=[]  
 
         low, high=self._lo_hi_preprocess(CLK_WISE)
-        # low=c_byte(low_temp); high=c_byte(high_temp)
-        # low_antiClk=low_temp | ANTI_CLK_W; high_antiClk=high_temp | ANTI_CLK_W #set direction bit1 =
         low_antiClk, high_antiClk=self._lo_hi_preprocess(ANTI_CLK_W) # ret in C byte format already
-        for _ in range(count):
-            for __ in range(pulse): # 1st clockwise direction
-                self.objdll.USBIO_GPIOWrite(self.id, low, WRITE_EN) #;sleep(self.delay)#disable for highest motor speed
-                self.objdll.USBIO_GPIOWrite(self.id, high, WRITE_EN) #; sleep(self.delay)#disable for highest motor speed
-            ret, frame = cap.read() # Capture frame-by-frame  
-            frames.append(frame)
-                
-            for __ in range(pulse): # 2nd anticlockwise direction
-                self.objdll.USBIO_GPIOWrite(self.id, low_antiClk, WRITE_EN) #;sleep(self.delay)#disable for highest motor speed
-                self.objdll.USBIO_GPIOWrite(self.id, high_antiClk, WRITE_EN) #; sleep(self.delay)#disable for highest motor speed
-            ret, frame = cap.read() # Capture frame-by-frame                
-            frames.append(frame)
+        div=divider #divide pulses into groups
+        for _ in range(count): #loop count
+            sub_pulse=pulse//div
+            for __ in range(div): #no of times to cap image
+                for ___ in range(sub_pulse): # 1st clockwise direction
+                    self.objdll.USBIO_GPIOWrite(self.id, low, WRITE_EN) #;sleep(self.delay)#disable for highest motor speed
+                    self.objdll.USBIO_GPIOWrite(self.id, high, WRITE_EN) #; sleep(self.delay)#disable for highest motor speed
+                ret, frame = cap.read() # Capture frame-by-frame  
+                frames.append(frame) # store per group
+
+            for __ in range(div):                
+                for ___ in range(sub_pulse): # 1st anticlockwise direction
+                    self.objdll.USBIO_GPIOWrite(self.id, low_antiClk, WRITE_EN) #;sleep(self.delay)#disable for highest motor speed
+                    self.objdll.USBIO_GPIOWrite(self.id, high_antiClk, WRITE_EN) #; sleep(self.delay)#disable for highest motor speed
+                ret, frame = cap.read() # Capture frame-by-frame                
+                frames.append(frame) # store per group
+
 
     
         cap.release()
@@ -230,7 +235,7 @@ class GpioStepper(UsbDevice):
         True if stopped normally
 
         """
-        status=self.objdll.USBIO_GPIOWrite(self.id, c_byte(0b100), c_byte(0))  #ENA=0, DIR=0, bit0=0
+        status=self.objdll.USBIO_GPIOWrite(self.id, c_byte(0b000), c_byte(0))  #ENA=0, DIR=0, bit0=0
         print(f"Set all ports to LOW and stopped the step-motor:{status}")
 
         return status
@@ -263,7 +268,7 @@ def cameraOn():
         ret, frame = cap.read()
 
         # Display the resulting frame
-        cv2.imshow("Real-Time Video. Press 'q' to exist.",frame)
+        cv2.imshow("                     Real-Time Video. Press 'q' to exist.",frame)
         if cv2.waitKey(8) & 0xFF == ord('q'): #display a frame for 8ms, ~120Hz
             break
     
@@ -291,7 +296,7 @@ def show_frames(frame_buffer, m_sec=1):
     logic=True
     while logic:
         for frame in frame_buffer:
-            cv2.imshow(f"Replay frames at {m_sec} ms, Press 'q' to exist.", frame)
+            cv2.imshow(f"                      Replay frames at {m_sec} ms, Press 'q' to exist.", frame)
             if cv2.waitKey(m_sec) & 0xFF == ord('q'): #display a frame for m_sec mSeconds
                 logic=False # stop outer-loop
                 break # break inner-loop
