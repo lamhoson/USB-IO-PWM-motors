@@ -1,7 +1,7 @@
 # USB-GPIO
 Library to control PC USB-GPIO win32/64 dll by Python class:
   1) PWM done.
-  2) GPIO - TBD
+  2) GPIO for Stepper done.
   3) AD - TBD
-  4) SPI, I2C & UART
+  4) SPI, I2C & UART - TBD
   
